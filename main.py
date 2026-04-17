@@ -308,9 +308,16 @@ async def main():
     # Cetak banner selamat datang
     console.print(Panel(
         "[bold cyan]Molty Royale Self-Learning Bot[/bold cyan]\n"
-        "[dim]Agent otonom bertenaga AI dengan pembelajaran berkelanjutan[/dim]",
+        "[dim]AI agent otonom yang bisa belajar mandiri[/dim]",
         title="Selamat Datang",
         border_style="cyan"
+    ))
+    
+    # Cetak nama pembuat
+    console.print(Panel(
+        "[bold yellow]Eryck Juliant a.k.a Gnosis[/bold yellow]",
+        title="Developed By",
+        border_style="yellow"
     ))
     
     parser = argparse.ArgumentParser(
