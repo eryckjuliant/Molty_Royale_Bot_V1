@@ -336,6 +336,86 @@ class OnChainManager:
     def is_connected(self) -> bool:
         """Periksa apakah terhubung ke Web3."""
         return self.w3 and self.w3.is_connected()
+    
+    async def verify_wallet_ownership(
+        self,
+        wallet_address: str,
+        agent_name: str,
+        private_key: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Verifikasi kepemilikan wallet untuk ERC-8004 agent identity.
+        
+        Args:
+            wallet_address: Alamat wallet yang akan diverifikasi
+            agent_name: Nama agent yang dicari
+            private_key: Private key opsional untuk sign message
+            
+        Returns:
+            Dict dengan status verifikasi, signature (jika private_key disediakan), dan info agent
+        """
+        result = {
+            "verified": False,
+            "has_identity": False,
+            "agent_id": None,
+            "signature": None,
+            "message": None,
+            "error": None
+        }
+        
+        try:
+            # Pastikan terhubung ke Web3
+            if not self.w3 or not self.w3.is_connected():
+                if not self.connect():
+                    result["error"] = "Tidak dapat terhubung ke Web3"
+                    return result
+            
+            # Normalisasi alamat wallet
+            wallet_address = self.w3.to_checksum_address(wallet_address)
+            
+            # Periksa apakah wallet memiliki identitas ERC-8004 dengan nama agent
+            if self.identity_registry:
+                existing_id = await self.check_erc8004_identity(wallet_address, agent_name)
+                
+                if existing_id:
+                    result["has_identity"] = True
+                    result["agent_id"] = existing_id
+                    result["verified"] = True
+                    print(f"✅ Wallet {wallet_address} memiliki identitas agent '{agent_name}' (ID: {existing_id})")
+                else:
+                    result["error"] = f"Wallet tidak memiliki identitas agent '{agent_name}'"
+                    print(f"⚠️  Wallet {wallet_address} tidak memiliki identitas agent '{agent_name}'")
+            else:
+                result["error"] = "Identity Registry tidak dikonfigurasi"
+                print("⚠️  Identity Registry tidak dikonfigurasi")
+            
+            # Jika private_key disediakan, sign message untuk verifikasi
+            if private_key and result["verified"]:
+                try:
+                    message = f"Recover API Key for agent {agent_name}"
+                    encoded_message = self.w3.eth.account.messages.encode_defunct(text=message)
+                    signed_message = self.w3.eth.account.sign_message(encoded_message, private_key=private_key)
+                    
+                    result["message"] = message
+                    result["signature"] = signed_message.signature.hex()
+                    result["address"] = signed_message.recover_address
+                    
+                    # Verifikasi bahwa signature cocok dengan wallet address
+                    if self.w3.to_checksum_address(signed_message.recover_address) == wallet_address:
+                        print(f"✅ Signature berhasil diverifikasi untuk wallet {wallet_address}")
+                    else:
+                        print(f"⚠️  Signature tidak cocok dengan wallet address")
+                        result["verified"] = False
+                        
+                except Exception as e:
+                    print(f"⚠️  Gagal sign message: {e}")
+                    result["error"] = f"Gagal sign message: {str(e)}"
+            
+            return result
+            
+        except Exception as e:
+            result["error"] = f"Error verifikasi kepemilikan wallet: {str(e)}"
+            print(f"❌ Error verifikasi kepemilikan wallet: {e}")
+            return result
 
 
 # Fungsi kenyamanan untuk penggunaan async

@@ -181,13 +181,25 @@ class BotManager:
                 self.console.print("[yellow]Mencoba pendaftaran otomatis...[/yellow]")
                 
                 try:
-                    # Coba dapatkan alamat wallet dari config
-                    wallet_address = self.client.wallet_address if hasattr(self.client, 'wallet_address') else None
+                    # Coba dapatkan alamat wallet dari config/secrets.yaml
+                    wallet_address = None
+                    try:
+                        import yaml
+                        with open("config/secrets.yaml", 'r') as f:
+                            secrets = yaml.safe_load(f)
+                            if secrets:
+                                wallet_address = secrets.get('wallet_address')
+                    except Exception:
+                        pass
+                    
+                    if not wallet_address:
+                        self.console.print("[yellow]⚠️  Wallet address tidak ditemukan di config/secrets.yaml[/yellow]")
                     
                     new_api_key = await self.client.create_account_if_needed(
                         agent_name=self.agent_name,
                         wallet_address=wallet_address,
-                        link_onchain=self.use_erc8004
+                        link_onchain=self.use_erc8004,
+                        try_retrieve=True  # Coba ambil kunci API yang ada terlebih dahulu
                     )
                     
                     self.console.print(Panel(

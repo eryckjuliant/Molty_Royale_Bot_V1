@@ -430,13 +430,46 @@ class MoltyRoyaleClient:
                 "error": f"Validasi kunci API gagal: {str(e)}"
             }
     
-    async def create_account_if_needed(self, agent_name: str, wallet_address: Optional[str] = None, link_onchain: bool = False) -> str:
+    async def retrieve_api_key(self, agent_name: str, wallet_address: Optional[str] = None) -> Optional[str]:
+        """Ambil kunci API yang ada berdasarkan nama agent dan alamat wallet.
+        
+        Args:
+            agent_name: Nama agent yang terdaftar
+            wallet_address: Alamat wallet yang terdaftar
+            
+        Returns:
+            Kunci API jika ditemukan, None jika tidak
+        """
+        try:
+            response = await self._request_with_retry(
+                "POST",
+                "/v1/auth/retrieve-api-key",
+                json={
+                    "agent_name": agent_name,
+                    "wallet_address": wallet_address
+                }
+            )
+            data = response.json()
+            api_key = data.get("api_key")
+            
+            if api_key:
+                print(f"✅ Kunci API berhasil diambil untuk agent: {agent_name}")
+                return api_key
+            else:
+                return None
+                
+        except Exception as e:
+            print(f"⚠️  Gagal mengambil kunci API: {e}")
+            return None
+    
+    async def create_account_if_needed(self, agent_name: str, wallet_address: Optional[str] = None, link_onchain: bool = False, try_retrieve: bool = True) -> str:
         """Buat akun dan kembalikan kunci API jika kunci saat ini tidak valid atau hilang.
         
         Args:
             agent_name: Nama untuk agent/akun baru
             wallet_address: Alamat wallet opsional untuk pendaftaran ERC-8004
             link_onchain: Apakah akan menautkan ke identitas on-chain ERC-8004 setelah pembuatan akun
+            try_retrieve: Apakah akan mencoba mengambil kunci API yang ada terlebih dahulu
             
         Returns:
             Kunci API baru jika akun dibuat, atau kunci yang ada jika valid
@@ -449,7 +482,19 @@ class MoltyRoyaleClient:
                 return self.api_key
             else:
                 print(f"❌ Kunci API tidak valid: {validation.get('error')}")
-                print("Mencoba mendaftarkan akun baru...")
+        
+        # Coba ambil kunci API yang ada berdasarkan nama agent dan wallet
+        if try_retrieve and wallet_address:
+            print(f"Mencoba mengambil kunci API untuk agent '{agent_name}' dengan wallet {wallet_address}...")
+            retrieved_key = await self.retrieve_api_key(agent_name, wallet_address)
+            if retrieved_key:
+                self.api_key = retrieved_key
+                await self._ensure_client()
+                self._save_api_key_to_secrets(retrieved_key)
+                print(f"✅ Kunci API disimpan ke config/secrets.yaml")
+                return retrieved_key
+            else:
+                print("⚠️  Tidak dapat mengambil kunci API yang ada, mencoba mendaftarkan akun baru...")
         else:
             print("⚠️  Kunci API tidak ditemukan, mencoba mendaftarkan akun baru...")
         
@@ -532,8 +577,232 @@ class MoltyRoyaleClient:
             print(f"⚠️  Gagal menautkan identitas on-chain: {e}")
             print("   Melanjutkan tanpa identitas on-chain...")
     
-    def _save_api_key_to_secrets(self, api_key: str) -> None:
-        """Simpan kunci API ke file secrets.yaml."""
+    async def get_api_key_by_agent_and_wallet(
+        self,
+        agent_name: str,
+        wallet_address: str,
+        private_key: Optional[str] = None
+    ) -> Optional[str]:
+        """Mencoba mendapatkan atau recover API Key berdasarkan nama agent dan wallet address.
+        
+        Langkah:
+        - Verifikasi kepemilikan wallet terlebih dahulu menggunakan ERC-8004 identity
+        - Kemudian cek endpoint GET /agent/status atau /me dengan wallet (jika support)
+        - Kemudian coba POST /agents/recover atau /auth/recover dengan body:
+          {
+            "agent_name": agent_name,
+            "wallet_address": wallet_address,
+            "signature": optional (jika butuh sign message)
+          }
+        - Jika ada endpoint /agents/register ulang, gunakan itu sebagai fallback (dengan warning "re-register").
+        - Jika berhasil dapat api_key baru, return string api_key.
+        - Jika gagal, return None dan log alasan jelas.
+        
+        Args:
+            agent_name: Nama agent yang terdaftar
+            wallet_address: Alamat wallet yang terdaftar
+            private_key: Private key opsional untuk signature jika dibutuhkan
+            
+        Returns:
+            Kunci API jika berhasil, None jika gagal
+        """
+        await self._ensure_client()
+        
+        # Verifikasi kepemilikan wallet sebelum mencoba recover
+        print(f"\n[bold cyan]Verifikasi kepemilikan wallet untuk agent '{agent_name}'...[/bold cyan]")
+        try:
+            from src.utils.onchain import OnChainManager
+            
+            onchain_manager = OnChainManager(
+                config_path=self.config_path,
+                secrets_path=self.secrets_path
+            )
+            
+            verification_result = await onchain_manager.verify_wallet_ownership(
+                wallet_address=wallet_address,
+                agent_name=agent_name,
+                private_key=private_key
+            )
+            
+            if not verification_result.get("verified"):
+                error = verification_result.get("error", "Verifikasi gagal")
+                print(f"❌ Verifikasi kepemilikan wallet gagal: {error}")
+                print(f"   Tidak dapat melanjutkan recover API key tanpa verifikasi kepemilikan wallet")
+                return None
+            
+            # Gunakan signature dari verifikasi jika tersedia
+            signature = verification_result.get("signature")
+            if signature:
+                print(f"✅ Signature tersedia untuk verifikasi tambahan")
+                
+        except ImportError:
+            print("⚠️  web3.py tidak terinstal, melewatkan verifikasi on-chain")
+            signature = None
+        except Exception as e:
+            print(f"⚠️  Gagal verifikasi on-chain: {e}")
+            print("   Melanjutkan tanpa verifikasi on-chain...")
+            signature = None
+        
+        # Langkah 1: Coba endpoint GET /agent/status atau /me dengan wallet
+        endpoints_get = [
+            f"/v1/agent/status?wallet={wallet_address}&agent_name={agent_name}",
+            f"/v1/me?wallet={wallet_address}",
+            f"/v1/agents/{agent_name}?wallet={wallet_address}"
+        ]
+        
+        for endpoint in endpoints_get:
+            for attempt in range(self._max_retries):
+                try:
+                    await self._rate_limit()
+                    response = await self._client.get(endpoint)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        api_key = data.get('api_key') or data.get('apiKey')
+                        if api_key:
+                            print(f"✅ API Key berhasil diambil dari {endpoint}")
+                            return api_key
+                    elif response.status_code == 404:
+                        break  # Endpoint tidak ada, coba endpoint lain
+                    elif response.status_code in (401, 403):
+                        # Unauthorized, mungkin butuh endpoint lain
+                        break
+                    else:
+                        response.raise_for_status()
+                        
+                except HTTPStatusError as e:
+                    if e.response.status_code in (429, 502, 503, 504):
+                        await asyncio.sleep(self._retry_delay * (2 ** attempt))
+                    elif e.response.status_code == 404:
+                        break
+                    else:
+                        break
+                except RequestError as e:
+                    await asyncio.sleep(self._retry_delay * (2 ** attempt))
+                except Exception as e:
+                    print(f"⚠️  Error saat mencoba {endpoint}: {e}")
+                    break
+        
+        # Langkah 2: Coba POST /agents/recover atau /auth/recover
+        endpoints_recover = [
+            "/v1/agents/recover",
+            "/v1/auth/recover",
+            "/v1/api/recover"
+        ]
+        
+        for endpoint in endpoints_recover:
+            for attempt in range(self._max_retries):
+                try:
+                    await self._rate_limit()
+                    
+                    body = {
+                        "agent_name": agent_name,
+                        "wallet_address": wallet_address
+                    }
+                    
+                    # Gunakan signature dari verifikasi jika tersedia, atau buat baru jika private_key diberikan
+                    if signature:
+                        body["signature"] = signature
+                        body["message"] = f"Recover API Key for agent {agent_name}"
+                    elif private_key:
+                        try:
+                            from web3 import Web3
+                            message = f"Recover API Key for agent {agent_name}"
+                            signed_message = Web3.eth.account.sign_message(
+                                Web3.eth.account.messages.encode_defunct(text=message),
+                                private_key=private_key
+                            )
+                            body["signature"] = signed_message.signature.hex()
+                            body["message"] = message
+                        except ImportError:
+                            print("⚠️  web3.py tidak terinstal, signature tidak ditambahkan")
+                    
+                    response = await self._client.post(endpoint, json=body)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        api_key = data.get('api_key') or data.get('apiKey')
+                        if api_key:
+                            print(f"✅ API Key berhasil di-recover dari {endpoint}")
+                            return api_key
+                    elif response.status_code == 404:
+                        break  # Endpoint tidak ada, coba endpoint lain
+                    else:
+                        response.raise_for_status()
+                        
+                except HTTPStatusError as e:
+                    if e.response.status_code in (429, 502, 503, 504):
+                        await asyncio.sleep(self._retry_delay * (2 ** attempt))
+                    elif e.response.status_code == 404:
+                        break
+                    else:
+                        print(f"⚠️  Error saat recover via {endpoint}: {e}")
+                        break
+                except RequestError as e:
+                    await asyncio.sleep(self._retry_delay * (2 ** attempt))
+                except Exception as e:
+                    print(f"⚠️  Error saat recover via {endpoint}: {e}")
+                    break
+        
+        # Langkah 3: Fallback ke /agents/register ulang (dengan warning)
+        endpoints_register = [
+            "/v1/agents/register",
+            "/v1/auth/register",
+            "/v1/register"
+        ]
+        
+        for endpoint in endpoints_register:
+            for attempt in range(self._max_retries):
+                try:
+                    await self._rate_limit()
+                    
+                    body = {
+                        "agent_name": agent_name,
+                        "wallet_address": wallet_address
+                    }
+                    
+                    response = await self._client.post(endpoint, json=body)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        api_key = data.get('api_key') or data.get('apiKey')
+                        if api_key:
+                            print(f"⚠️  API Key diambil melalui re-register (fallback)")
+                            print(f"⚠️  Agent '{agent_name}' terdaftar ulang")
+                            return api_key
+                    elif response.status_code == 404:
+                        break
+                    else:
+                        response.raise_for_status()
+                        
+                except HTTPStatusError as e:
+                    if e.response.status_code in (429, 502, 503, 504):
+                        await asyncio.sleep(self._retry_delay * (2 ** attempt))
+                    elif e.response.status_code == 404:
+                        break
+                    else:
+                        print(f"⚠️  Error saat re-register via {endpoint}: {e}")
+                        break
+                except RequestError as e:
+                    await asyncio.sleep(self._retry_delay * (2 ** attempt))
+                except Exception as e:
+                    print(f"⚠️  Error saat re-register via {endpoint}: {e}")
+                    break
+        
+        # Semua endpoint gagal
+        print(f"❌ Gagal mendapatkan API Key untuk agent '{agent_name}' dengan wallet {wallet_address}")
+        print(f"   Alasan: Semua endpoint tidak tersedia atau gagal")
+        return None
+    
+    async def save_api_key_to_secrets(self, api_key: str) -> bool:
+        """Simpan kunci API ke file secrets.yaml.
+        
+        Args:
+            api_key: Kunci API yang akan disimpan
+            
+        Returns:
+            True jika berhasil, False jika gagal
+        """
         try:
             secrets = {}
             if os.path.exists(self.secrets_path):
@@ -543,10 +812,58 @@ class MoltyRoyaleClient:
             secrets['api_key'] = api_key
             
             with open(self.secrets_path, 'w') as f:
-                yaml.dump(secrets, f, default_flow_style=False)
+                yaml.dump(secrets, f, default_flow_style=False, sort_keys=False)
+            
+            print("✅ API Key berhasil disimpan otomatis ke config/secrets.yaml")
+            return True
                 
         except Exception as e:
-            print(f"Peringatan: Tidak dapat menyimpan kunci API ke secrets.yaml: {e}")
+            print(f"❌ Gagal menyimpan API Key ke config/secrets.yaml: {e}")
+            return False
+    
+    async def auto_recover_api_key(
+        self,
+        agent_name: str,
+        wallet_address: str,
+        private_key: Optional[str] = None
+    ) -> bool:
+        """Recover otomatis API key dan simpan ke secrets.yaml.
+        
+        Args:
+            agent_name: Nama agent yang terdaftar
+            wallet_address: Alamat wallet yang terdaftar
+            private_key: Private key opsional untuk signature jika dibutuhkan
+            
+        Returns:
+            True jika berhasil, False jika gagal
+        """
+        from rich.console import Console
+        console = Console()
+        
+        print(f"\n[bold yellow]Mencoba recover API Key untuk agent '{agent_name}'...[/bold yellow]")
+        
+        # Panggil get_api_key_by_agent_and_wallet
+        api_key = await self.get_api_key_by_agent_and_wallet(
+            agent_name=agent_name,
+            wallet_address=wallet_address,
+            private_key=private_key
+        )
+        
+        if api_key:
+            # Simpan ke secrets.yaml
+            saved = await self.save_api_key_to_secrets(api_key)
+            if saved:
+                # Update client dengan API key baru
+                self.api_key = api_key
+                await self._ensure_client()
+                console.print("[bold green]✅ API Key berhasil di-recover dan disimpan[/bold green]")
+                return True
+            else:
+                console.print("[bold red]❌ API Key didapat tapi gagal disimpan[/bold red]")
+                return False
+        else:
+            console.print("[bold red]❌ Gagal recover API Key[/bold red]")
+            return False
     
     async def get_agent_info(self) -> Dict[str, Any]:
         """Dapatkan informasi agent lengkap.
