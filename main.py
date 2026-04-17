@@ -1,4 +1,4 @@
-"""Main entry point for Molty Royale Self-Learning Bot."""
+"""Titik masuk utama untuk Molty Royale Self-Learning Bot."""
 
 import asyncio
 import signal
@@ -20,7 +20,7 @@ from src.api_client import MoltyRoyaleClient
 
 
 class BotManager:
-    """Manages GameLoop and AutoTrainer running concurrently."""
+    """Mengelola GameLoop dan AutoTrainer yang berjalan secara bersamaan."""
     
     def __init__(
         self,
@@ -41,12 +41,12 @@ class BotManager:
     
     async def initialize(self):
         """Initialize all components with API key validation."""
-        self.logger.info("Initializing Molty Royale Self-Learning Bot...")
+        self.logger.info("Menginisialisasi Molty Royale Self-Learning Bot...")
         
-        # Step 1: Initialize API client and validate API key
+        # Langkah 1: Inisialisasi klien API dan validasi kunci API
         await self._setup_api_client()
         
-        # Step 2: Check and register ERC-8004 identity if enabled
+        # Langkah 2: Periksa dan daftarkan identitas ERC-8004 jika diaktifkan
         if self.use_erc8004:
             await self._setup_onchain_identity()
         
@@ -55,7 +55,7 @@ class BotManager:
             capacity=100000,
             save_path="data/replay"
         )
-        self.logger.success("Replay buffer initialized")
+        self.logger.success("Buffer replay terinisialisasi")
         
         # Initialize game loop
         self.game_loop = GameLoop(
@@ -65,7 +65,7 @@ class BotManager:
         )
         self.game_loop.set_replay_buffer(self.replay_buffer)
         self.game_loop.set_api_client(self.client)
-        self.logger.success("Game loop initialized")
+        self.logger.success("Loop permainan terinisialisasi")
         
         # Initialize auto trainer (background)
         self.trainer = AutoTrainer(
@@ -73,39 +73,39 @@ class BotManager:
             save_path="data/models",
             log_interval=10
         )
-        self.logger.success("Auto trainer initialized")
+        self.logger.success("Pelatih otomatis terinisialisasi")
     
     async def run_game_loop(self):
-        """Run the game loop in the foreground."""
+        """Jalankan loop permainan di latar depan."""
         try:
-            self.logger.info("Starting game loop...")
+            self.logger.info("Memulai loop permainan...")
             await self.game_loop.run(num_episodes=9999, max_steps=1000)
         except Exception as e:
             self.logger.log_error_with_context(e, "run_game_loop")
             self.shutdown_event.set()
     
     async def run_trainer(self):
-        """Run the auto trainer in the background."""
+        """Jalankan pelatih otomatis di latar belakang."""
         try:
-            self.logger.info("Starting background auto trainer...")
+            self.logger.info("Memulai pelatih otomatis di latar belakang...")
             await self.trainer.run()
         except Exception as e:
             self.logger.log_error_with_context(e, "run_trainer")
             self.shutdown_event.set()
     
     async def run(self):
-        """Run both game loop and trainer concurrently."""
+        """Jalankan loop permainan dan pelatih secara bersamaan."""
         try:
-            # Initialize components
+            # Inisialisasi komponen
             await self.initialize()
             
-            # Setup signal handlers
+            # Atur penangan sinyal
             loop = asyncio.get_running_loop()
             for sig in (signal.SIGINT, signal.SIGTERM):
                 loop.add_signal_handler(sig, self._handle_signal)
             
-            # Run game loop and trainer concurrently
-            self.logger.info("Starting bot (GameLoop + AutoTrainer)...")
+            # Jalankan loop permainan dan pelatih secara bersamaan
+            self.logger.info("Memulai bot (GameLoop + AutoTrainer)...")
             
             await asyncio.gather(
                 self.run_game_loop(),
@@ -118,13 +118,13 @@ class BotManager:
             await self.shutdown()
     
     def _handle_signal(self):
-        """Handle shutdown signals."""
-        self.logger.warning("Shutdown signal received")
+        """Tangani sinyal shutdown."""
+        self.logger.warning("Sinyal shutdown diterima")
         self.shutdown_event.set()
     
     async def shutdown(self):
-        """Graceful shutdown."""
-        self.logger.info("Shutting down bot...")
+        """Shutdown yang tertib."""
+        self.logger.info("Mematikan bot...")
         
         if self.game_loop:
             await self.game_loop.stop()
@@ -138,50 +138,50 @@ class BotManager:
         self.logger.close()
     
     async def _setup_api_client(self):
-        """Setup and validate API client."""
+        """Atur dan validasi klien API."""
         self.console.print(Panel(
-            "[bold cyan]Step 1: API Client Setup[/bold cyan]",
+            "[bold cyan]Langkah 1: Pengaturan Klien API[/bold cyan]",
             title="Setup Phase",
             border_style="cyan"
         ))
         
-        # Initialize client
+        # Inisialisasi klien
         self.client = MoltyRoyaleClient()
         
-        # Check API key validity
-        self.console.print("[yellow]Checking API key validity...[/yellow]")
+        # Periksa validitas kunci API
+        self.console.print("[yellow]Memeriksa validitas kunci API...[/yellow]")
         
         validation = await self.client.check_api_key_valid()
         
         if validation.get("valid"):
-            # API key is valid
+            # Kunci API valid
             agent_name = validation.get('agent_name', 'unknown')
             wallet_address = validation.get('wallet_address', 'Not linked')
             
             self.console.print(Panel(
-                f"[bold green]✅ API Key Valid[/bold green]\n"
+                f"[bold green]✅ Kunci API Valid[/bold green]\n"
                 f"Agent: [cyan]{agent_name}[/cyan]\n"
                 f"Wallet: [cyan]{wallet_address}[/cyan]",
                 title="API Key Status",
                 border_style="green"
             ))
-            self.logger.info(f"API Key OK, Agent: {agent_name} | Wallet: {wallet_address}")
+            self.logger.info(f"Kunci API OK, Agent: {agent_name} | Wallet: {wallet_address}")
         else:
-            # API key is invalid or missing
+            # Kunci API tidak valid atau hilang
             error = validation.get('error', 'Unknown error')
             
             self.console.print(Panel(
-                f"[bold red]❌ API Key Invalid[/bold red]\n"
+                f"[bold red]❌ Kunci API Tidak Valid[/bold red]\n"
                 f"Error: [yellow]{error}[/yellow]",
                 title="API Key Status",
                 border_style="red"
             ))
             
             if self.register_if_needed:
-                self.console.print("[yellow]Attempting automatic registration...[/yellow]")
+                self.console.print("[yellow]Mencoba pendaftaran otomatis...[/yellow]")
                 
                 try:
-                    # Try to get wallet address from config
+                    # Coba dapatkan alamat wallet dari config
                     wallet_address = self.client.wallet_address if hasattr(self.client, 'wallet_address') else None
                     
                     new_api_key = await self.client.create_account_if_needed(
@@ -191,33 +191,33 @@ class BotManager:
                     )
                     
                     self.console.print(Panel(
-                        f"[bold green]✅ Account Registered Successfully[/bold green]\n"
+                        f"[bold green]✅ Akun Berhasil Terdaftar[/bold green]\n"
                         f"Agent: [cyan]{self.agent_name}[/cyan]\n"
                         f"API Key saved to config/secrets.yaml",
-                        title="Registration Success",
+                        title="Pendaftaran Berhasil",
                         border_style="green"
                     ))
                     
-                    # Reload client with new API key
+                    # Muat ulang klien dengan kunci API baru
                     self.client = MoltyRoyaleClient()
                     
                 except Exception as e:
                     self.console.print(Panel(
-                        f"[bold red]❌ Registration Failed[/bold red]\n"
+                        f"[bold red]❌ Pendaftaran Gagal[/bold red]\n"
                         f"Error: [yellow]{str(e)}[/yellow]\n"
-                        f"Please register manually at moltyroyale.com",
-                        title="Registration Error",
+                        f"Silakan daftar secara manual di moltyroyale.com",
+                        title="Error Pendaftaran",
                         border_style="red"
                     ))
-                    raise RuntimeError(f"Failed to register account: {str(e)}")
+                    raise RuntimeError(f"Gagal mendaftarkan akun: {str(e)}")
             else:
-                self.console.print("[yellow]Use --register-if-needed to enable automatic registration[/yellow]")
-                raise RuntimeError("API key is invalid. Please register manually or use --register-if-needed")
+                self.console.print("[yellow]Gunakan --register-if-needed untuk mengaktifkan pendaftaran otomatis[/yellow]")
+                raise RuntimeError("Kunci API tidak valid. Silakan daftar secara manual atau gunakan --register-if-needed")
     
     async def _setup_onchain_identity(self):
-        """Setup ERC-8004 on-chain identity if enabled."""
+        """Atur identitas on-chain ERC-8004 jika diaktifkan."""
         self.console.print(Panel(
-            "[bold cyan]Step 2: ERC-8004 Identity Setup[/bold cyan]",
+            "[bold cyan]Langkah 2: Pengaturan Identitas ERC-8004[/bold cyan]",
             title="Setup Phase",
             border_style="cyan"
         ))
@@ -234,14 +234,14 @@ class BotManager:
             
             if not wallet_address:
                 self.console.print(Panel(
-                    "[bold yellow]⚠️  No Wallet Address Found[/bold yellow]\n"
-                    "Add wallet_address to config/secrets.yaml to use ERC-8004",
+                    "[bold yellow]⚠️  Alamat Wallet Tidak Ditemukan[/bold yellow]\n"
+                    "Tambahkan wallet_address ke config/secrets.yaml untuk menggunakan ERC-8004",
                     title="On-chain Identity",
                     border_style="yellow"
                 ))
                 return
             
-            self.console.print(f"[yellow]Checking ERC-8004 identity for {wallet_address}...[/yellow]")
+            self.console.print(f"[yellow]Memeriksa identitas ERC-8004 untuk {wallet_address}...[/yellow]")
             
             existing_id = await onchain_manager.check_erc8004_identity(
                 wallet_address,
@@ -250,16 +250,16 @@ class BotManager:
             
             if existing_id:
                 self.console.print(Panel(
-                    f"[bold green]✅ ERC-8004 Identity Found[/bold green]\n"
-                    f"Agent ID: [cyan]{existing_id}[/cyan]",
+                    f"[bold green]✅ Identitas ERC-8004 Ditemukan[/bold green]\n"
+                    f"ID Agent: [cyan]{existing_id}[/cyan]",
                     title="On-chain Identity",
                     border_style="green"
                 ))
-                self.logger.info(f"ERC-8004 identity already registered: {existing_id}")
+                self.logger.info(f"Identitas ERC-8004 sudah terdaftar: {existing_id}")
             else:
                 self.console.print(Panel(
-                    "[bold yellow]⚠️  No ERC-8004 Identity Found[/bold yellow]\n"
-                    f"Attempting to register for agent: [cyan]{self.agent_name}[/cyan]...",
+                    "[bold yellow]⚠️  Identitas ERC-8004 Tidak Ditemukan[/bold yellow]\n"
+                    f"Mencoba mendaftar untuk agent: [cyan]{self.agent_name}[/cyan]...",
                     title="On-chain Identity",
                     border_style="yellow"
                 ))
@@ -268,48 +268,48 @@ class BotManager:
                 
                 if new_id:
                     self.console.print(Panel(
-                        f"[bold green]✅ ERC-8004 Identity Registered[/bold green]\n"
-                        f"Agent ID: [cyan]{new_id}[/cyan]",
+                        f"[bold green]✅ Identitas ERC-8004 Terdaftar[/bold green]\n"
+                        f"ID Agent: [cyan]{new_id}[/cyan]",
                         title="On-chain Identity",
                         border_style="green"
                     ))
-                    self.logger.success(f"ERC-8004 identity registered: {new_id}")
+                    self.logger.success(f"Identitas ERC-8004 terdaftar: {new_id}")
                 else:
                     self.console.print(Panel(
-                        "[bold yellow]⚠️  ERC-8004 Registration Skipped[/bold yellow]\n"
-                        "May require manual registration or private key",
+                        "[bold yellow]⚠️  Pendaftaran ERC-8004 Dilewati[/bold yellow]\n"
+                        "Mungkin memerlukan pendaftaran manual atau private key",
                         title="On-chain Identity",
                         border_style="yellow"
                     ))
         
         except ImportError:
             self.console.print(Panel(
-                "[bold yellow]⚠️  web3.py Not Installed[/bold yellow]\n"
-                "Install with: pip install web3",
+                "[bold yellow]⚠️  web3.py Tidak Terinstal[/bold yellow]\n"
+                "Instal dengan: pip install web3",
                 title="On-chain Identity",
                 border_style="yellow"
             ))
         except Exception as e:
             self.console.print(Panel(
-                f"[bold red]❌ On-chain Identity Setup Failed[/bold red]\n"
+                f"[bold red]❌ Pengaturan Identitas On-chain Gagal[/bold red]\n"
                 f"Error: [yellow]{str(e)}[/yellow]",
                 title="On-chain Identity",
                 border_style="red"
             ))
-            self.logger.warning(f"On-chain identity setup failed: {e}")
+            self.logger.warning(f"Pengaturan identitas on-chain gagal: {e}")
 
 
 async def main():
-    """Main entry point."""
+    """Titik masuk utama."""
     import argparse
     
     console = Console()
     
-    # Print welcome banner
+    # Cetak banner selamat datang
     console.print(Panel(
         "[bold cyan]Molty Royale Self-Learning Bot[/bold cyan]\n"
-        "[dim]AI-powered autonomous agent with continuous learning[/dim]",
-        title="Welcome",
+        "[dim]Agent otonom bertenaga AI dengan pembelajaran berkelanjutan[/dim]",
+        title="Selamat Datang",
         border_style="cyan"
     ))
     
@@ -317,40 +317,40 @@ async def main():
         description="Molty Royale Self-Learning Bot",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  python main.py                                    # Run with default settings
-  python main.py --agent-name "MyBot"             # Set custom agent name
-  python main.py --register-if-needed             # Auto-register if API key invalid
-  python main.py --erc8004 --agent-name "MyBot"   # Enable ERC-8004 identity
+Contoh:
+  python main.py                                    # Jalankan dengan pengaturan default
+  python main.py --agent-name "BotSaya"           # Atur nama agent kustom
+  python main.py --register-if-needed             # Daftar otomatis jika kunci API tidak valid
+  python main.py --erc8004 --agent-name "BotSaya" # Aktifkan identitas ERC-8004
 """
     )
     parser.add_argument(
         "--agent-name",
         type=str,
         default="MoltyBot",
-        help="Agent name for registration (default: MoltyBot)"
+        help="Nama agent untuk pendaftaran (default: MoltyBot)"
     )
     parser.add_argument(
         "--register-if-needed",
         action="store_true",
-        help="Automatically register new account if API key is invalid"
+        help="Daftarkan akun baru secara otomatis jika kunci API tidak valid"
     )
     parser.add_argument(
         "--erc8004",
         action="store_true",
-        help="Enable ERC-8004 on-chain identity registration"
+        help="Aktifkan pendaftaran identitas on-chain ERC-8004"
     )
     parser.add_argument(
         "--agent-type",
         type=str,
         default="rule_based",
         choices=["rule_based", "rl"],
-        help="Type of agent to use (default: rule_based)"
+        help="Tipe agent yang akan digunakan (default: rule_based)"
     )
     
     args = parser.parse_args()
     
-    # Create and run bot manager
+    # Buat dan jalankan manajer bot
     manager = BotManager(
         use_erc8004=args.erc8004,
         agent_name=args.agent_name,
@@ -360,11 +360,11 @@ Examples:
     try:
         await manager.run()
     except KeyboardInterrupt:
-        console.print("[yellow]\n⚠️  Interrupted by user[/yellow]")
-        manager.logger.info("Interrupted by user")
+        console.print("[yellow]\n⚠️  Dihentikan oleh pengguna[/yellow]")
+        manager.logger.info("Dihentikan oleh pengguna")
     except Exception as e:
         console.print(Panel(
-            f"[bold red]❌ Fatal Error[/bold red]\n"
+            f"[bold red]❌ Error Fatal[/bold red]\n"
             f"Error: [yellow]{str(e)}[/yellow]",
             title="Error",
             border_style="red"

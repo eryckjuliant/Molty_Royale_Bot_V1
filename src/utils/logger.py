@@ -1,4 +1,4 @@
-"""Logging utility with Rich console, file logging, and JSON state saving."""
+"""Utilitas logging dengan Rich console, file logging, dan penyimpanan status JSON."""
 
 import logging
 import json
@@ -12,7 +12,7 @@ from rich.theme import Theme
 
 
 class GameLogger:
-    """Logger with Rich console output, file logging, and JSON state saving."""
+    """Logger dengan output Rich console, file logging, dan penyimpanan status JSON."""
     
     def __init__(
         self,
@@ -25,12 +25,12 @@ class GameLogger:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.save_raw_json = save_raw_json
         
-        # Create subdirectories
+        # Buat subdirektori
         self.json_dir = self.log_dir / "raw_json"
         if self.save_raw_json:
             self.json_dir.mkdir(parents=True, exist_ok=True)
         
-        # Setup Rich console
+        # Atur Rich console
         self.console = Console(
             theme=Theme({
                 "info": "blue",
@@ -42,12 +42,12 @@ class GameLogger:
             force_terminal=console_colors
         )
         
-        # Setup Python logger with Rich handler
+        # Atur logger Python dengan handler Rich
         self.logger = logging.getLogger("MoltyRoyaleBot")
         self.logger.setLevel(getattr(logging, log_level.upper()))
         self.logger.handlers.clear()
         
-        # Rich console handler
+        # Handler console Rich
         console_handler = RichHandler(
             console=self.console,
             rich_tracebacks=True,
@@ -58,7 +58,7 @@ class GameLogger:
         console_handler.setLevel(getattr(logging, log_level.upper()))
         self.logger.addHandler(console_handler)
         
-        # File handler
+        # Handler file
         log_file = self.log_dir / f"bot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
         file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(logging.DEBUG)
@@ -68,7 +68,7 @@ class GameLogger:
         file_handler.setFormatter(file_formatter)
         self.logger.addHandler(file_handler)
         
-        # JSON session tracking
+        # Pelacakan sesi JSON
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.json_session_dir = self.json_dir / self.session_id
         if self.save_raw_json:
@@ -78,40 +78,40 @@ class GameLogger:
         self.logger.info(f"Logger initialized. Session ID: {self.session_id}")
     
     def info(self, message: str) -> None:
-        """Log info message."""
+        """Catat pesan info."""
         self.logger.info(message)
     
     def warning(self, message: str) -> None:
-        """Log warning message."""
+        """Catat pesan peringatan."""
         self.logger.warning(message)
     
     def error(self, message: str) -> None:
-        """Log error message."""
+        """Catat pesan error."""
         self.logger.error(message)
     
     def critical(self, message: str) -> None:
-        """Log critical message."""
+        """Catat pesan kritis."""
         self.logger.critical(message)
     
     def debug(self, message: str) -> None:
-        """Log debug message."""
+        """Catat pesan debug."""
         self.logger.debug(message)
     
     def success(self, message: str) -> None:
-        """Log success message (Rich only)."""
+        """Catat pesan sukses (hanya Rich)."""
         self.console.print(f"[success]✓ {message}[/success]")
         self.logger.info(message)
     
     def print(self, message: str, style: Optional[str] = None) -> None:
-        """Print message to console only (no file logging)."""
+        """Cetak pesan ke console saja (tanpa file logging)."""
         self.console.print(message, style=style)
     
     def log_state(self, state: Dict[str, Any], action: Optional[Dict[str, Any]] = None) -> None:
-        """Save raw JSON state to file.
+        """Simpan status JSON mentah ke file.
         
         Args:
-            state: Raw game state from API
-            action: Optional action taken with this state
+            state: Status permainan mentah dari API
+            action: Aksi opsional yang diambil dengan status ini
         """
         if not self.save_raw_json:
             return
@@ -132,7 +132,7 @@ class GameLogger:
             
             self.json_counter += 1
             
-            # Log periodically to avoid spam
+            # Catat secara berkala untuk menghindari spam
             if self.json_counter % 100 == 0:
                 self.debug(f"Saved {self.json_counter} JSON states")
         
@@ -140,10 +140,10 @@ class GameLogger:
             self.error(f"Failed to save JSON state: {e}")
     
     def log_episode(self, episode_data: Dict[str, Any]) -> None:
-        """Save episode summary to file.
+        """Simpan ringkasan episode ke file.
         
         Args:
-            episode_data: Dictionary containing episode summary data
+            episode_data: Dictionary yang berisi data ringkasan episode
         """
         try:
             filename = self.json_session_dir / f"episode_{episode_data.get('episode_num', 0):04d}.json"
@@ -156,40 +156,40 @@ class GameLogger:
             self.error(f"Failed to save episode summary: {e}")
     
     def log_training_step(self, step: int, metrics: Dict[str, float]) -> None:
-        """Log training step metrics.
+        """Catat metrik langkah pelatihan.
         
         Args:
-            step: Training step number
-            metrics: Dictionary of metric names to values
+            step: Nomor langkah pelatihan
+            metrics: Dictionary nama metrik ke nilai
         """
         metrics_str = ", ".join([f"{k}: {v:.4f}" for k, v in metrics.items()])
         self.info(f"Step {step} - {metrics_str}")
     
     def log_reward(self, reward: float, episode: int, step: int) -> None:
-        """Log reward information.
+        """Catat informasi reward.
         
         Args:
-            reward: Reward value
-            episode: Episode number
-            step: Step number within episode
+            reward: Nilai reward
+            episode: Nomor episode
+            step: Nomor langkah dalam episode
         """
         self.debug(f"Episode {episode}, Step {step}: Reward = {reward:.4f}")
     
     def log_action(self, action_type: str, action_details: str) -> None:
-        """Log action taken.
+        """Catat aksi yang diambil.
         
         Args:
-            action_type: Type of action (move, attack, etc.)
-            action_details: Details about the action
+            action_type: Tipe aksi (move, attack, dll.)
+            action_details: Detail tentang aksi
         """
         self.debug(f"Action: {action_type} - {action_details}")
     
     def log_error_with_context(self, error: Exception, context: str) -> None:
-        """Log error with additional context.
+        """Catat error dengan konteks tambahan.
         
         Args:
-            error: Exception object
-            context: Context string describing where the error occurred
+            error: Objek Exception
+            context: String konteks yang menjelaskan di mana error terjadi
         """
         self.error(f"Error in {context}: {type(error).__name__}: {str(error)}")
         if self.logger.level <= logging.DEBUG:
@@ -197,21 +197,21 @@ class GameLogger:
             self.debug(traceback.format_exc())
     
     def log_model_save(self, model_path: str, episode: int) -> None:
-        """Log model save event.
+        """Catat event penyimpanan model.
         
         Args:
-            model_path: Path where model was saved
-            episode: Episode number
+            model_path: Jalur di mana model disimpan
+            episode: Nomor episode
         """
         self.success(f"Model saved at episode {episode}: {model_path}")
     
     def log_evaluation(self, eval_results: Dict[str, Any]) -> None:
-        """Log evaluation results.
+        """Catat hasil evaluasi.
         
         Args:
-            eval_results: Dictionary containing evaluation metrics
+            eval_results: Dictionary yang berisi metrik evaluasi
         """
-        self.info("Evaluation Results:")
+        self.info("Hasil Evaluasi:")
         for key, value in eval_results.items():
             if isinstance(value, float):
                 self.info(f"  {key}: {value:.4f}")
@@ -219,14 +219,14 @@ class GameLogger:
                 self.info(f"  {key}: {value}")
     
     def create_progress_bar(self, total: int, description: str = "Progress"):
-        """Create a Rich progress bar.
+        """Buat progress bar Rich.
         
         Args:
-            total: Total number of items
-            description: Description for the progress bar
+            total: Jumlah total item
+            description: Deskripsi untuk progress bar
             
         Returns:
-            Rich progress object
+            Objek progress Rich
         """
         from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
         progress = Progress(
@@ -239,29 +239,29 @@ class GameLogger:
         return progress
     
     def print_table(self, data: list, title: str = "") -> None:
-        """Print data as a Rich table.
+        """Cetak data sebagai tabel Rich.
         
         Args:
-            data: List of lists (rows) or list of dicts
-            title: Optional table title
+            data: List dari list (baris) atau list dari dict
+            title: Judul tabel opsional
         """
         from rich.table import Table
         
         if not data:
-            self.warning("No data to display in table")
+            self.warning("Tidak ada data untuk ditampilkan dalam tabel")
             return
         
         table = Table(title=title)
         
         if isinstance(data[0], dict):
-            # Headers from dict keys
+            # Header dari kunci dict
             for key in data[0].keys():
                 table.add_column(str(key))
             
             for row in data:
                 table.add_row(*[str(v) for v in row.values()])
         else:
-            # Headers from first row
+            # Header dari baris pertama
             for i in range(len(data[0])):
                 table.add_column(f"Col {i}")
             
@@ -271,10 +271,10 @@ class GameLogger:
         self.console.print(table)
     
     def close(self) -> None:
-        """Close logger and flush all handlers."""
+        """Tutup logger dan flush semua handler."""
         self.logger.info(f"Session {self.session_id} ended. Total JSON states saved: {self.json_counter}")
         
-        # Close all handlers
+        # Tutup semua handler
         for handler in self.logger.handlers[:]:
             handler.close()
             self.logger.removeHandler(handler)

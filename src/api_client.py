@@ -8,7 +8,7 @@ import os
 
 
 class MoltyRoyaleClient:
-    """Async HTTP client for Molty Royale API with automatic retry and rate limit handling."""
+    """Klien HTTP asinkron untuk API Molty Royale dengan retry otomatis dan penanganan rate limit."""
     
     def __init__(self, config_path: str = "config/config.yaml", secrets_path: str = "config/secrets.yaml"):
         self.base_url: str = ""
@@ -29,7 +29,7 @@ class MoltyRoyaleClient:
         self._timeout: float = 10.0
     
     def _load_config(self, config_path: str, secrets_path: str) -> None:
-        """Load configuration from YAML files and environment variables."""
+        """Muat konfigurasi dari file YAML dan variabel lingkungan."""
         try:
             with open(config_path, 'r') as f:
                 config = yaml.safe_load(f)
@@ -51,21 +51,21 @@ class MoltyRoyaleClient:
             if env_api_key:
                 self.api_key = env_api_key
         except FileNotFoundError as e:
-            raise RuntimeError(f"Config file not found: {e}")
+            raise RuntimeError(f"File konfigurasi tidak ditemukan: {e}")
         except yaml.YAMLError as e:
-            raise RuntimeError(f"Invalid YAML in config: {e}")
+            raise RuntimeError(f"YAML tidak valid dalam konfigurasi: {e}")
     
     async def __aenter__(self):
-        """Async context manager entry."""
+        """Masuk manajer konteks asinkron."""
         await self._ensure_client()
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit."""
+        """Keluar manajer konteks asinkron."""
         await self.close()
     
     async def _ensure_client(self) -> None:
-        """Ensure HTTP client is initialized."""
+        """Pastikan klien HTTP terinisialisasi."""
         if self._client is None or self._client.is_closed:
             self._client = AsyncClient(
                 base_url=self.base_url,
@@ -77,12 +77,12 @@ class MoltyRoyaleClient:
             )
     
     async def close(self) -> None:
-        """Close the HTTP client."""
+        """Tutup klien HTTP."""
         if self._client and not self._client.is_closed:
             await self._client.aclose()
     
     async def _rate_limit(self) -> None:
-        """Apply rate limiting between requests."""
+        """Terapkan rate limiting antara permintaan."""
         current_time = time.time()
         time_since_last = current_time - self._last_request_time
         if time_since_last < self._rate_limit_delay:
@@ -95,7 +95,7 @@ class MoltyRoyaleClient:
         endpoint: str,
         **kwargs
     ) -> Response:
-        """Make HTTP request with automatic retry on failure."""
+        """Buat permintaan HTTP dengan retry otomatis saat gagal."""
         await self._ensure_client()
         
         last_error = None
@@ -108,26 +108,26 @@ class MoltyRoyaleClient:
             except HTTPStatusError as e:
                 last_error = e
                 if e.response.status_code in (429, 502, 503, 504):
-                    # Rate limit or server error - retry with backoff
+                    # Rate limit atau error server - retry dengan backoff
                     await asyncio.sleep(self._retry_delay * (2 ** attempt))
                 else:
-                    # Other HTTP errors - don't retry
+                    # Error HTTP lainnya - jangan retry
                     raise
             except RequestError as e:
                 last_error = e
                 await asyncio.sleep(self._retry_delay * (2 ** attempt))
         
-        raise RuntimeError(f"Max retries exceeded: {last_error}")
+        raise RuntimeError(f"Maksimum retry terlampaui: {last_error}")
     
     async def create_account(self, username: str, email: str) -> Dict[str, Any]:
-        """Create a new Molty Royale account.
+        """Buat akun Molty Royale baru.
         
         Args:
-            username: Desired username
-            email: Email address
+            username: Username yang diinginkan
+            email: Alamat email
             
         Returns:
-            Account creation response with user_id and initial credentials
+            Respons pembuatan akun dengan user_id dan kredensial awal
         """
         response = await self._request_with_retry(
             "POST",
@@ -145,15 +145,15 @@ class MoltyRoyaleClient:
         agent_type: str = "rl",
         description: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Register a new AI agent for the game.
+        """Daftarkan agent AI baru untuk permainan.
         
         Args:
-            agent_name: Name of the agent
-            agent_type: Type of agent (rl, rule_based, hybrid)
-            description: Optional agent description
+            agent_name: Nama agent
+            agent_type: Tipe agent (rl, rule_based, hybrid)
+            description: Deskripsi agent opsional
             
         Returns:
-            Agent registration response with agent_id
+            Respons pendaftaran agent dengan agent_id
         """
         response = await self._request_with_retry(
             "POST",
@@ -168,14 +168,14 @@ class MoltyRoyaleClient:
         return response.json()
     
     async def get_state(self, agent_id: str, game_session_id: Optional[str] = None) -> Dict[str, Any]:
-        """Get current game state for an agent.
+        """Dapatkan status permainan saat ini untuk agent.
         
         Args:
-            agent_id: Agent identifier
-            game_session_id: Optional specific game session ID
+            agent_id: Identifier agent
+            game_session_id: ID sesi permainan spesifik opsional
             
         Returns:
-            Current game state with observations, scores, and metadata
+            Status permainan saat ini dengan observasi, skor, dan metadata
         """
         params = {"agent_id": agent_id}
         if game_session_id:
@@ -194,15 +194,15 @@ class MoltyRoyaleClient:
         action: Dict[str, Any],
         game_session_id: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Send an action to the game engine.
+        """Kirim aksi ke mesin permainan.
         
         Args:
-            agent_id: Agent identifier
-            action: Action dictionary with action_type and parameters
-            game_session_id: Optional specific game session ID
+            agent_id: Identifier agent
+            action: Dictionary aksi dengan action_type dan parameter
+            game_session_id: ID sesi permainan spesifik opsional
             
         Returns:
-            Action response with new state, reward, and done flag
+            Respons aksi dengan status baru, reward, dan flag done
         """
         params = {"agent_id": agent_id}
         if game_session_id:
@@ -217,10 +217,10 @@ class MoltyRoyaleClient:
         return response.json()
     
     async def get_game_list(self) -> List[Dict[str, Any]]:
-        """Get list of available game modes/configurations.
+        """Dapatkan daftar mode/konfigurasi permainan yang tersedia.
         
         Returns:
-            List of available games with their metadata
+            Daftar permainan yang tersedia dengan metadata mereka
         """
         response = await self._request_with_retry(
             "GET",
@@ -234,15 +234,15 @@ class MoltyRoyaleClient:
         agent_id: str,
         mode: str = "standard"
     ) -> Dict[str, Any]:
-        """Join a specific game instance.
+        """Bergabung dengan instance permainan spesifik.
         
         Args:
-            game_id: Game identifier
-            agent_id: Agent identifier
-            mode: Game mode (standard, ranked, practice)
+            game_id: Identifier permainan
+            agent_id: Identifier agent
+            mode: Mode permainan (standard, ranked, practice)
             
         Returns:
-            Game session information with session_id
+            Informasi sesi permainan dengan session_id
         """
         response = await self._request_with_retry(
             "POST",
@@ -260,14 +260,14 @@ class MoltyRoyaleClient:
         session_id: str,
         agent_id: str
     ) -> Dict[str, Any]:
-        """Leave a game session.
+        """Tinggalkan sesi permainan.
         
         Args:
-            session_id: Game session identifier
-            agent_id: Agent identifier
+            session_id: Identifier sesi permainan
+            agent_id: Identifier agent
             
         Returns:
-            Leave confirmation response
+            Respons konfirmasi keluar
         """
         response = await self._request_with_retry(
             "POST",
@@ -280,14 +280,14 @@ class MoltyRoyaleClient:
         return response.json()
     
     async def get_leaderboard(self, game_id: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
-        """Get leaderboard for a game.
+        """Dapatkan papan peringkat untuk permainan.
         
         Args:
-            game_id: Optional game identifier (uses current game_id if not provided)
-            limit: Maximum number of entries to return
+            game_id: Identifier permainan opsional (menggunakan game_id saat ini jika tidak disediakan)
+            limit: Jumlah maksimum entri yang akan dikembalikan
             
         Returns:
-            Leaderboard entries with rankings and scores
+            Entri papan peringkat dengan peringkat dan skor
         """
         params = {"limit": limit}
         if game_id:
@@ -303,13 +303,13 @@ class MoltyRoyaleClient:
         return response.json()
     
     async def get_agent_stats(self, agent_id: str) -> Dict[str, Any]:
-        """Get statistics for a specific agent.
+        """Dapatkan statistik untuk agent spesifik.
         
         Args:
-            agent_id: Agent identifier
+            agent_id: Identifier agent
             
         Returns:
-            Agent statistics including games played, win rate, etc.
+            Statistik agent termasuk permainan yang dimainkan, tingkat kemenangan, dll.
         """
         response = await self._request_with_retry(
             "GET",
@@ -323,15 +323,15 @@ class MoltyRoyaleClient:
         model_path: str,
         model_version: str
     ) -> Dict[str, Any]:
-        """Upload a trained model for the agent.
+        """Unggah model yang dilatih untuk agent.
         
         Args:
-            agent_id: Agent identifier
-            model_path: Path to the model file
-            model_version: Version string for the model
+            agent_id: Identifier agent
+            model_path: Jalur ke file model
+            model_version: String versi untuk model
             
         Returns:
-            Model upload confirmation with model_id
+            Konfirmasi unggahan model dengan model_id
         """
         with open(model_path, 'rb') as f:
             files = {"model": f}
@@ -348,13 +348,13 @@ class MoltyRoyaleClient:
         return response.json()
     
     async def get_replay_data(self, session_id: str) -> Dict[str, Any]:
-        """Download replay data for a game session.
+        """Unduh data replay untuk sesi permainan.
         
         Args:
-            session_id: Game session identifier
+            session_id: Identifier sesi permainan
             
         Returns:
-            Replay data with all actions and states from the session
+            Data replay dengan semua aksi dan status dari sesi
         """
         response = await self._request_with_retry(
             "GET",
@@ -363,16 +363,16 @@ class MoltyRoyaleClient:
         return response.json()
     
     async def check_api_key_valid(self) -> Dict[str, Any]:
-        """Check if the current API key is valid.
+        """Periksa apakah kunci API saat ini valid.
         
         Returns:
-            Dict with 'valid' boolean and agent info if valid, or error if invalid.
-            Returns {"valid": False, "error": "..."} on 401/403 errors.
+            Dict dengan boolean 'valid' dan info agent jika valid, atau error jika tidak valid.
+            Mengembalikan {"valid": False, "error": "..."} pada error 401/403.
         """
         try:
             await self._ensure_client()
             
-            # Try multiple endpoints for API key validation
+            # Coba beberapa endpoint untuk validasi kunci API
             endpoints = ["/v1/me", "/v1/profile", "/v1/agent/status"]
             
             last_error = None
@@ -399,7 +399,7 @@ class MoltyRoyaleClient:
                                 "error": "Invalid or expired API Key"
                             }
                         elif response.status_code == 404:
-                            # Endpoint not found, try next endpoint
+                            # Endpoint tidak ditemukan, coba endpoint berikutnya
                             break
                         else:
                             response.raise_for_status()
@@ -418,42 +418,42 @@ class MoltyRoyaleClient:
                         last_error = e
                         await asyncio.sleep(self._retry_delay * (2 ** attempt))
             
-            # If all endpoints failed with 404, API might be valid but endpoints different
+            # Jika semua endpoint gagal dengan 404, API mungkin valid tapi endpoint berbeda
             return {
                 "valid": False,
-                "error": f"Could not validate API key: {last_error}"
+                "error": f"Tidak dapat memvalidasi kunci API: {last_error}"
             }
             
         except Exception as e:
             return {
                 "valid": False,
-                "error": f"API key validation failed: {str(e)}"
+                "error": f"Validasi kunci API gagal: {str(e)}"
             }
     
     async def create_account_if_needed(self, agent_name: str, wallet_address: Optional[str] = None, link_onchain: bool = False) -> str:
-        """Create account and return API key if current key is invalid or missing.
+        """Buat akun dan kembalikan kunci API jika kunci saat ini tidak valid atau hilang.
         
         Args:
-            agent_name: Name for the new agent/account
-            wallet_address: Optional wallet address for ERC-8004 registration
-            link_onchain: Whether to link to ERC-8004 on-chain identity after account creation
+            agent_name: Nama untuk agent/akun baru
+            wallet_address: Alamat wallet opsional untuk pendaftaran ERC-8004
+            link_onchain: Apakah akan menautkan ke identitas on-chain ERC-8004 setelah pembuatan akun
             
         Returns:
-            New API key if account was created, or existing key if valid
+            Kunci API baru jika akun dibuat, atau kunci yang ada jika valid
         """
-        # First check if current API key is valid
+        # Pertama periksa apakah kunci API saat ini valid
         if self.api_key:
             validation = await self.check_api_key_valid()
             if validation.get("valid"):
-                print(f"✅ API Key valid for agent: {validation.get('agent_name', 'unknown')}")
+                print(f"✅ Kunci API valid untuk agent: {validation.get('agent_name', 'unknown')}")
                 return self.api_key
             else:
-                print(f"❌ API Key invalid: {validation.get('error')}")
-                print("Attempting to register new account...")
+                print(f"❌ Kunci API tidak valid: {validation.get('error')}")
+                print("Mencoba mendaftarkan akun baru...")
         else:
-            print("⚠️  No API Key found, attempting to register new account...")
+            print("⚠️  Kunci API tidak ditemukan, mencoba mendaftarkan akun baru...")
         
-        # Create new account
+        # Buat akun baru
         try:
             response = await self._request_with_retry(
                 "POST",
@@ -468,72 +468,72 @@ class MoltyRoyaleClient:
             
             if new_api_key:
                 self.api_key = new_api_key
-                # Update the client with new API key
+                # Perbarui klien dengan kunci API baru
                 await self._ensure_client()
                 
-                # Save to secrets.yaml
+                # Simpan ke secrets.yaml
                 self._save_api_key_to_secrets(new_api_key)
                 
-                print(f"✅ New account created successfully")
-                print(f"✅ API Key saved to config/secrets.yaml")
+                print(f"✅ Akun baru berhasil dibuat")
+                print(f"✅ Kunci API disimpan ke config/secrets.yaml")
                 
-                # Link to on-chain identity if requested
+                # Tautkan ke identitas on-chain jika diminta
                 if link_onchain:
                     await self._link_onchain_identity(agent_name, wallet_address)
                 
                 return new_api_key
             else:
-                raise RuntimeError("No API key returned from account creation")
+                raise RuntimeError("Tidak ada kunci API yang dikembalikan dari pembuatan akun")
                 
         except Exception as e:
-            raise RuntimeError(f"Failed to create account: {str(e)}")
+            raise RuntimeError(f"Gagal membuat akun: {str(e)}")
     
     async def _link_onchain_identity(self, agent_name: str, wallet_address: Optional[str] = None) -> None:
-        """Link account to ERC-8004 on-chain identity if possible."""
+        """Tautkan akun ke identitas on-chain ERC-8004 jika memungkinkan."""
         try:
             from src.utils.onchain import OnChainManager
             
-            print("Attempting to link to ERC-8004 on-chain identity...")
+            print("Mencoba menautkan ke identitas on-chain ERC-8004...")
             
-            # Initialize on-chain manager
+            # Inisialisasi manajer on-chain
             onchain_manager = OnChainManager(
                 config_path=self.config_path,
                 secrets_path=self.secrets_path
             )
             
-            # Get wallet address from secrets if not provided
+            # Dapatkan alamat wallet dari secrets jika tidak disediakan
             if not wallet_address:
                 wallet_address = onchain_manager.get_wallet_address()
             
             if not wallet_address:
-                print("⚠️  No wallet address available, skipping on-chain identity linking")
+                print("⚠️  Tidak ada alamat wallet yang tersedia, melewatkan penautan identitas on-chain")
                 return
             
-            # Check if identity already exists
+            # Periksa apakah identitas sudah ada
             existing_id = await onchain_manager.check_erc8004_identity(wallet_address, agent_name)
             
             if existing_id:
-                print(f"✅ On-chain identity already exists with ID: {existing_id}")
+                print(f"✅ Identitas on-chain sudah ada dengan ID: {existing_id}")
             else:
-                print("No existing on-chain identity found, attempting to register...")
+                print("Identitas on-chain yang ada tidak ditemukan, mencoba mendaftar...")
                 
-                # Try to register new identity (requires private key)
+                # Coba daftarkan identitas baru (memerlukan private key)
                 new_id = await onchain_manager.register_erc8004(agent_name)
                 
                 if new_id:
-                    print(f"✅ On-chain identity registered successfully with ID: {new_id}")
+                    print(f"✅ Identitas on-chain berhasil terdaftar dengan ID: {new_id}")
                 else:
-                    print("⚠️  On-chain identity registration failed (may require manual registration)")
+                    print("⚠️  Pendaftaran identitas on-chain gagal (mungkin memerlukan pendaftaran manual)")
         
         except ImportError:
-            print("⚠️  web3.py not installed, skipping on-chain identity linking")
-            print("   Install with: pip install web3")
+            print("⚠️  web3.py tidak terinstal, melewatkan penautan identitas on-chain")
+            print("   Instal dengan: pip install web3")
         except Exception as e:
-            print(f"⚠️  Failed to link on-chain identity: {e}")
-            print("   Continuing without on-chain identity...")
+            print(f"⚠️  Gagal menautkan identitas on-chain: {e}")
+            print("   Melanjutkan tanpa identitas on-chain...")
     
     def _save_api_key_to_secrets(self, api_key: str) -> None:
-        """Save API key to secrets.yaml file."""
+        """Simpan kunci API ke file secrets.yaml."""
         try:
             secrets = {}
             if os.path.exists(self.secrets_path):
@@ -546,13 +546,13 @@ class MoltyRoyaleClient:
                 yaml.dump(secrets, f, default_flow_style=False)
                 
         except Exception as e:
-            print(f"Warning: Could not save API key to secrets.yaml: {e}")
+            print(f"Peringatan: Tidak dapat menyimpan kunci API ke secrets.yaml: {e}")
     
     async def get_agent_info(self) -> Dict[str, Any]:
-        """Get complete agent information.
+        """Dapatkan informasi agent lengkap.
         
         Returns:
-            Dict with agent name, wallet linked, ERC-8004 agentId, reputation, etc.
+            Dict dengan nama agent, wallet yang terhubung, ERC-8004 agentId, reputasi, dll.
         """
         validation = await self.check_api_key_valid()
         
@@ -573,35 +573,35 @@ class MoltyRoyaleClient:
             }
     
     async def setup(self, agent_name: str = "MoltyBot", wallet_address: Optional[str] = None, link_onchain: bool = False) -> bool:
-        """Setup client with automatic API key validation and registration if needed.
+        """Atur klien dengan validasi kunci API otomatis dan pendaftaran jika diperlukan.
         
         Args:
-            agent_name: Name to use if creating a new account
-            wallet_address: Optional wallet address for ERC-8004
-            link_onchain: Whether to link to ERC-8004 on-chain identity after account creation
+            agent_name: Nama yang akan digunakan jika membuat akun baru
+            wallet_address: Alamat wallet opsional untuk ERC-8004
+            link_onchain: Apakah akan menautkan ke identitas on-chain ERC-8004 setelah pembuatan akun
             
         Returns:
-            True if setup successful, False otherwise
+            True jika pengaturan berhasil, False jika tidak
         """
         try:
-            print("Setting up MoltyRoyaleClient...")
+            print("Mengatur MoltyRoyaleClient...")
             
-            # Validate or create API key
+            # Validasi atau buat kunci API
             api_key = await self.create_account_if_needed(agent_name, wallet_address, link_onchain)
             
-            # Get agent info
+            # Dapatkan info agent
             agent_info = await self.get_agent_info()
             
             if agent_info.get("valid"):
-                print(f"✅ Setup complete for agent: {agent_info.get('agent_name')}")
+                print(f"✅ Pengaturan selesai untuk agent: {agent_info.get('agent_name')}")
                 print(f"   Agent ID: {agent_info.get('agent_id')}")
                 if agent_info.get('wallet_address'):
                     print(f"   Wallet: {agent_info.get('wallet_address')}")
                 return True
             else:
-                print(f"❌ Setup failed: {agent_info.get('error')}")
+                print(f"❌ Pengaturan gagal: {agent_info.get('error')}")
                 return False
                 
         except Exception as e:
-            print(f"❌ Setup failed with exception: {str(e)}")
+            print(f"❌ Pengaturan gagal dengan exception: {str(e)}")
             return False
