@@ -1,0 +1,15 @@
+fastapi==0.115.*
+httpx==0.28.*
+python-dotenv
+PyYAML
+stable-baselines3[extra]
+gymnasium==1.0.*
+torch==2.5.0
+torchvision==0.20.0
+torchaudio==2.5.0
+pandas
+pyarrow
+rich
+tqdm
+web3
+matplotlib

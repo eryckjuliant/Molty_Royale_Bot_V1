@@ -1,0 +1,6 @@
+api_base: "https://api.moltyroyale.com"
+game_id: "default_free"          # ganti nanti
+api_key: "mr_live_XXXXXXXX"      # placeholder
+agent_name: "EryckOne"          # nama agent kamu
+max_games: 9999
+ml_training_interval: 20
